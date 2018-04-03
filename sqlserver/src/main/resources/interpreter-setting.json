@@ -1,0 +1,55 @@
+[
+  {
+    "group": "sqlserver",
+    "name": "sqlserver",
+    "className": "org.apache.zeppelin.sqlserver.SqlServerInterpreter",
+    "properties": {
+      "sqlserver.url": {
+        "envName": null,
+        "propertyName": "sqlserver.url",
+        "defaultValue": "jdbc:sqlserver://localhost:1433",
+        "description": "JDBC URL for SQL Server"
+      },
+      "sqlserver.user": {
+        "envName": null,
+        "propertyName": "sqlserver.user",
+        "defaultValue": "zeppelin",
+        "description": "SQL Server user name"
+      },
+      "sqlserver.password": {
+        "envName": null,
+        "propertyName": "sqlserver.password",
+        "defaultValue": "",
+        "description": "SQL Server user password"
+      },
+      "sqlserver.database": {
+        "envName": null,
+        "propertyName": "sqlserver.database",
+        "defaultValue": "tempdb",
+        "description": "SQL Server database"
+      },
+      "sqlserver.driver": {
+        "envName": null,
+        "propertyName": "sqlserver.driver",
+        "defaultValue": "com.microsoft.sqlserver.jdbc.SQLServerDriver",
+        "description": "JDBC Driver Name"
+      },
+      "sqlserver.max.result": {
+        "envName": null,
+        "propertyName": "sqlserver.max.result",
+        "defaultValue": "1000",
+        "description": "Max number of SQL result to display"
+      },
+      "sqlserver.connections": {
+        "envName": null,
+        "propertyName": "sqlserver.connections",
+        "defaultValue": "notebook",
+        "description": "Notebook or Paragraph connection style"
+      }
+    },
+    "editor": {
+      "language": "sqlserver",
+      "editOnDblClick": false
+    }
+  }
+]

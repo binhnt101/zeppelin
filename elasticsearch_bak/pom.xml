@@ -37,7 +37,6 @@
     <json-flattener.version>0.1.6</json-flattener.version>
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
-    <httpasyncclient.version>4.0.2</httpasyncclient.version>
   </properties>
 
   <dependencies>
@@ -57,11 +56,7 @@
       <artifactId>transport</artifactId>
       <version>6.0.0</version>
     </dependency>
-    <dependency>
-      <groupId>org.apache.httpcomponents</groupId>
-      <artifactId>httpasyncclient</artifactId>
-      <version>${httpasyncclient.version}</version>
-    </dependency>
+
     <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
@@ -73,17 +68,13 @@
       <artifactId>json-flattener</artifactId>
       <version>${json-flattener.version}</version>
     </dependency>
-
+    
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
       <version>1.7.5</version>
     </dependency>
-    <dependency>
-      <groupId>com.mashape.unirest</groupId>
-      <artifactId>unirest-java</artifactId>
-      <version>1.4.9</version>
-    </dependency>
+
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
@@ -103,11 +94,11 @@
       </plugin>
       <plugin>
         <artifactId>maven-enforcer-plugin</artifactId>
-        <version>1.3.1</version>
-        <executions>
-          <execution>
-            <id>enforce</id>
-            <phase>none</phase>
+        <version>1.3.1</version>            
+        <executions> 
+          <execution> 
+            <id>enforce</id> 
+            <phase>none</phase> 
           </execution>
         </executions>
       </plugin>
@@ -148,7 +139,7 @@
                   <version>${project.version}</version>
                   <type>${project.packaging}</type>
                 </artifactItem>
-              </artifactItems>
+              </artifactItems>              
             </configuration>
           </execution>
         </executions>
