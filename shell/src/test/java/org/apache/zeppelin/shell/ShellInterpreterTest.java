@@ -20,24 +20,31 @@ package org.apache.zeppelin.shell;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import java.util.Properties;
 
 import org.apache.zeppelin.interpreter.InterpreterContext;
 import org.apache.zeppelin.interpreter.InterpreterResult;
 import org.apache.zeppelin.interpreter.InterpreterResult.Code;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 
 public class ShellInterpreterTest {
 
   private ShellInterpreter shell;
+  private InterpreterContext context;
+  private InterpreterResult result;
 
   @Before
   public void setUp() throws Exception {
     Properties p = new Properties();
-    p.setProperty("shell.command.timeout.millisecs", "60000");
+    p.setProperty("shell.command.timeout.millisecs", "2000");
     shell = new ShellInterpreter(p);
+
+    context = new InterpreterContext("", "1", null, "", "", null, null, null, null, null, null,
+        null, null);
+    shell.open();
   }
 
   @After
@@ -46,9 +53,6 @@ public class ShellInterpreterTest {
 
   @Test
   public void test() {
-    shell.open();
-    InterpreterContext context = new InterpreterContext("", "1", "", "", null, null, null, null, null, null, null);
-    InterpreterResult result = new InterpreterResult(Code.ERROR);
     if (System.getProperty("os.name").startsWith("Windows")) {
       result = shell.interpret("dir", context);
     } else {
@@ -63,16 +67,24 @@ public class ShellInterpreterTest {
 
   @Test
   public void testInvalidCommand(){
-    shell.open();
-    InterpreterContext context = new InterpreterContext("","1","","",null,null,null,null,null,null,null);
-    InterpreterResult result = new InterpreterResult(Code.ERROR);
     if (System.getProperty("os.name").startsWith("Windows")) {
-      result = shell.interpret("invalid_command\ndir",context);
+      result = shell.interpret("invalid_command\ndir", context);
     } else {
-      result = shell.interpret("invalid_command\nls",context);
+      result = shell.interpret("invalid_command\nls", context);
     }
-    assertEquals(InterpreterResult.Code.SUCCESS,result.code());
-    assertTrue(result.message().contains("invalid_command"));
+    assertEquals(Code.SUCCESS, result.code());
+    assertTrue(shell.executors.isEmpty());
   }
 
+  @Test
+  public void testShellTimeout() {
+    if (System.getProperty("os.name").startsWith("Windows")) {
+      result = shell.interpret("timeout 4", context);
+    } else {
+      result = shell.interpret("sleep 4", context);
+    }
+
+    assertEquals(Code.INCOMPLETE, result.code());
+    assertTrue(result.message().get(0).getData().contains("Paragraph received a SIGTERM"));
+  }
 }

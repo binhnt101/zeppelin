@@ -22,20 +22,31 @@
   <parent>
     <artifactId>zeppelin</artifactId>
     <groupId>org.apache.zeppelin</groupId>
-    <version>0.7.0-SNAPSHOT</version>
+    <version>0.9.0-SNAPSHOT</version>
     <relativePath>..</relativePath>
   </parent>
 
   <groupId>org.apache.zeppelin</groupId>
   <artifactId>zeppelin-web</artifactId>
   <packaging>war</packaging>
-  <version>0.7.0-SNAPSHOT</version>
+  <version>0.9.0-SNAPSHOT</version>
   <name>Zeppelin: web Application</name>
 
   <!-- See https://github.com/eirslett/frontend-maven-plugin/issues/229 -->
   <prerequisites>
     <maven>3.1.0</maven>
   </prerequisites>
+
+  <properties>
+    <web.e2e.disabled>true</web.e2e.disabled>
+    <web.e2e.enabled>false</web.e2e.enabled>
+    <zeppelin.daemon.package.base>../bin</zeppelin.daemon.package.base>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+    <!--plugin versions-->
+    <plugin.frontend.nodeDownloadRoot>https://nodejs.org/dist/</plugin.frontend.nodeDownloadRoot>
+    <plugin.frontend.npmDownloadRoot>http://registry.npmjs.org/npm/-/</plugin.frontend.npmDownloadRoot>
+  </properties>
 
   <build>
     <plugins>
@@ -49,58 +60,24 @@
       </plugin>
 
       <plugin>
-        <groupId>org.apache.rat</groupId>
-        <artifactId>apache-rat-plugin</artifactId>
-        <configuration>
-          <excludes>
-            <exclude>**/.idea/</exclude>
-            <exclude>**/*.iml</exclude>
-            <exclude>.git/</exclude>
-            <exclude>.gitignore</exclude>
-            <exclude>.bowerrc</exclude>
-            <exclude>.editorconfig</exclude>
-            <exclude>.jscsrc</exclude>
-            <exclude>.eslintrc</exclude>
-            <exclude>.tmp/**</exclude>
-            <exclude>**/.settings/*</exclude>
-            <exclude>**/.classpath</exclude>
-            <exclude>**/.project</exclude>
-            <exclude>**/target/**</exclude>
-            <exclude>node/**</exclude>
-            <exclude>node_modules/**</exclude>
-            <exclude>bower_components/**</exclude>
-            <exclude>test/**</exclude>
-            <exclude>dist/**</exclude>
-            <exclude>src/.buildignore</exclude>
-            <exclude>src/fonts/fontawesome*</exclude>
-            <exclude>src/fonts/font-awesome*</exclude>
-            <exclude>src/styles/font-awesome*</exclude>
-            <exclude>src/fonts/Simple-Line*</exclude>
-            <exclude>src/fonts/simple-line*</exclude>
-            <exclude>src/fonts/Patua-One*</exclude>
-            <exclude>src/fonts/Roboto*</exclude>
-            <exclude>src/fonts/Source-Code-Pro*</exclude>
-            <exclude>bower.json</exclude>
-            <exclude>package.json</exclude>
-            <exclude>*.md</exclude>
-          </excludes>
-        </configuration>
-      </plugin>
-
-      <plugin>
         <groupId>com.github.eirslett</groupId>
         <artifactId>frontend-maven-plugin</artifactId>
-        <version>0.0.25</version>
+        <version>${plugin.frontend.version}</version>
+        <configuration>
+          <nodeDownloadRoot>${plugin.frontend.nodeDownloadRoot}</nodeDownloadRoot>
+          <npmDownloadRoot>${plugin.frontend.npmDownloadRoot}</npmDownloadRoot>
+        </configuration>
+
         <executions>
 
           <execution>
-            <id>install node and npm</id>
+            <id>install node</id>
             <goals>
               <goal>install-node-and-npm</goal>
             </goals>
             <configuration>
-              <nodeVersion>v0.12.13</nodeVersion>
-              <npmVersion>2.15.0</npmVersion>
+              <nodeVersion>${node.version}</nodeVersion>
+              <npmVersion>${npm.version}</npmVersion>
             </configuration>
           </execution>
 
@@ -109,39 +86,85 @@
             <goals>
               <goal>npm</goal>
             </goals>
-          </execution>
-
-          <execution>
-            <id>bower install</id>
-            <goals>
-              <goal>bower</goal>
-            </goals>
             <configuration>
-              <arguments>--allow-root install</arguments>
+              <skip>${web.e2e.enabled}</skip>
+              <arguments>install --no-lockfile</arguments>
             </configuration>
           </execution>
 
           <execution>
-            <id>grunt build</id>
+            <id>npm build</id>
             <goals>
-              <goal>grunt</goal>
+              <goal>npm</goal>
             </goals>
             <configuration>
-              <arguments>build</arguments>
+              <skip>${web.e2e.enabled}</skip>
+              <arguments>${web.build.command}</arguments>
             </configuration>
           </execution>
 
           <execution>
-            <id>grunt test</id>
+            <id>npm test</id>
             <goals>
-              <goal>grunt</goal>
+              <goal>npm</goal>
             </goals>
             <phase>test</phase>
             <configuration>
-              <arguments>test</arguments>
+              <skip>${web.e2e.disabled}</skip>
+              <arguments>run test</arguments>
             </configuration>
           </execution>
 
+            <execution>
+              <id>npm e2e</id>
+              <goals>
+                <goal>npm</goal>
+              </goals>
+              <phase>integration-test</phase>
+              <configuration>
+                <skip>${web.e2e.disabled}</skip>
+                <arguments>run e2e</arguments>
+              </configuration>
+            </execution>
+
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>start-zeppelin</id>
+            <phase>pre-integration-test</phase>
+            <configuration>
+              <skip>${web.e2e.disabled}</skip>
+              <target unless="skipTests">
+                <exec executable="./zeppelin-daemon.sh" dir="${zeppelin.daemon.package.base}" spawn="false">
+                  <arg value="start" />
+                </exec>
+              </target>
+            </configuration>
+            <goals>
+              <goal>run</goal>
+            </goals>
+          </execution>
+
+          <execution>
+            <id>stop-zeppelin</id>
+            <phase>post-integration-test</phase>
+            <configuration>
+              <skip>${web.e2e.disabled}</skip>
+              <target unless="skipTests">
+                <exec executable="./zeppelin-daemon.sh" dir="${zeppelin.daemon.package.base}" spawn="false">
+                  <arg value="stop" />
+                </exec>
+              </target>
+            </configuration>
+            <goals>
+              <goal>run</goal>
+            </goals>
+          </execution>
         </executions>
       </plugin>
 
@@ -166,15 +189,21 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-deploy-plugin</artifactId>
-        <version>2.7</version>
       </plugin>
 
       <plugin>
+        <!-- clean task will be executed by front-end-maven plugin -->
         <artifactId>maven-clean-plugin</artifactId>
         <configuration>
           <filesets>
             <fileset>
               <directory>bower_components</directory>
+            </fileset>
+            <fileset>
+              <directory>node</directory>
+            </fileset>
+            <fileset>
+              <directory>node_modules</directory>
             </fileset>
           </filesets>
         </configuration>
@@ -182,8 +211,30 @@
     </plugins>
   </build>
 
-  <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-  </properties>
+  <profiles>
+    <profile>
+      <id>web-dist</id>
+      <activation>
+        <activeByDefault>true</activeByDefault>
+      </activation>
+      <properties>
+        <web.build.command>run build:dist</web.build.command>
+      </properties>
+    </profile>
+    <profile>
+      <id>web-ci</id>
+      <properties>
+        <web.build.command>run build:ci</web.build.command>
+      </properties>
+    </profile>
+
+    <profile>
+      <id>web-e2e</id>
+      <properties>
+        <web.e2e.disabled>false</web.e2e.disabled>
+        <web.e2e.enabled>true</web.e2e.enabled>
+      </properties>
+    </profile>
+  </profiles>
 
 </project>

@@ -16,17 +16,30 @@
  */
 
 package org.apache.zeppelin.dep;
+import static org.apache.commons.lang.StringUtils.isNotBlank;
+
+import com.google.gson.Gson;
+import org.apache.zeppelin.common.JsonSerializable;
 import org.sonatype.aether.repository.Authentication;
+import org.sonatype.aether.repository.Proxy;
+
 /**
  *
  *
  */
-public class Repository {
+public class Repository implements JsonSerializable {
+  private static final Gson gson = new Gson();
+
   private boolean snapshot = false;
   private String id;
   private String url;
   private String username = null;
   private String password = null;
+  private String proxyProtocol = "HTTP";
+  private String proxyHost = null;
+  private Integer proxyPort = null;
+  private String proxyLogin = null;
+  private String proxyPassword = null;
 
   public Repository(String id){
     this.id = id;
@@ -76,5 +89,25 @@ public class Repository {
       auth = new Authentication(this.username, this.password);
     }
     return auth;
+  }
+
+  public Proxy getProxy() {
+    if (isNotBlank(proxyHost) && proxyPort != null) {
+      if (isNotBlank(proxyLogin)) {
+        return new Proxy(proxyProtocol, proxyHost, proxyPort,
+                new Authentication(proxyLogin, proxyPassword));
+      } else {
+        return new Proxy(proxyProtocol, proxyHost, proxyPort, null);
+      }
+    }
+    return null;
+  }
+
+  public String toJson() {
+    return gson.toJson(this);
+  }
+
+  public static Repository fromJson(String json) {
+    return gson.fromJson(json, Repository.class);
   }
 }

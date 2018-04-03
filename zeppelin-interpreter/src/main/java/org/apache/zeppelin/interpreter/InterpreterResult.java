@@ -17,19 +17,27 @@
 
 package org.apache.zeppelin.interpreter;
 
+import com.google.gson.Gson;
+import org.apache.zeppelin.common.JsonSerializable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
 import java.io.Serializable;
-import org.apache.commons.lang3.StringUtils;
-import java.util.*;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * Interpreter result template.
  */
-public class InterpreterResult implements Serializable {
+public class InterpreterResult implements Serializable, JsonSerializable {
+  transient Logger logger = LoggerFactory.getLogger(InterpreterResult.class);
+  private static final Gson gson = new Gson();
 
   /**
    *  Type of result after code execution.
    */
-  public static enum Code {
+  public enum Code {
     SUCCESS,
     INCOMPLETE,
     ERROR,
@@ -39,115 +47,94 @@ public class InterpreterResult implements Serializable {
   /**
    * Type of Data.
    */
-  public static enum Type {
+  public enum Type {
     TEXT,
     HTML,
     ANGULAR,
     TABLE,
     IMG,
     SVG,
-    NULL
+    NULL,
+    NETWORK
   }
 
   Code code;
-  Type type;
-  String msg;
+  List<InterpreterResultMessage> msg = new LinkedList<>();
 
   public InterpreterResult(Code code) {
     this.code = code;
-    this.msg = null;
-    this.type = Type.TEXT;
+  }
+
+  public InterpreterResult(Code code, List<InterpreterResultMessage> msgs) {
+    this.code = code;
+    msg.addAll(msgs);
   }
 
   public InterpreterResult(Code code, String msg) {
     this.code = code;
-    this.msg = getData(msg);
-    this.type = getType(msg);
+    add(msg);
   }
 
   public InterpreterResult(Code code, Type type, String msg) {
     this.code = code;
-    this.msg = msg;
-    this.type = type;
+    add(type, msg);
   }
 
   /**
-   * Magic is like %html %text.
-   *
+   * Automatically detect %[display_system] directives
    * @param msg
-   * @return
    */
-  private String getData(String msg) {
-    if (msg == null) {
-      return null;
+  public void add(String msg) {
+    InterpreterOutput out = new InterpreterOutput(null);
+    try {
+      out.write(msg);
+      out.flush();
+      this.msg.addAll(out.toInterpreterResultMessage());
+      out.close();
+    } catch (IOException e) {
+      logger.error(e.getMessage(), e);
     }
-    Type[] types = type.values();
-    TreeMap<Integer, Type> typesLastIndexInMsg = buildIndexMap(msg);
-    if (typesLastIndexInMsg.size() == 0) {
-      return msg;
-    } else {
-      Map.Entry<Integer, Type> lastType = typesLastIndexInMsg.firstEntry();
-      //add 1 for the % char
-      int magicLength = lastType.getValue().name().length() + 1;
-      // 1 for the last \n or space after magic
-      int subStringPos = magicLength + lastType.getKey() + 1;
-      return msg.substring(subStringPos);
-    }
+
   }
 
-  private Type getType(String msg) {
-    if (msg == null) {
-      return Type.TEXT;
-    }
-    Type[] types = type.values();
-    TreeMap<Integer, Type> typesLastIndexInMsg = buildIndexMap(msg);
-    if (typesLastIndexInMsg.size() == 0) {
-      return Type.TEXT;
-    } else {
-      Map.Entry<Integer, Type> lastType = typesLastIndexInMsg.firstEntry();
-      return lastType.getValue();
-    }
+  public void add(Type type, String data) {
+    msg.add(new InterpreterResultMessage(type, data));
   }
 
-  private int getIndexOfType(String msg, Type t) {
-    if (msg == null) {
-      return 0;
-    }
-    String typeString = "%" + t.name().toLowerCase();
-    return StringUtils.indexOf(msg, typeString );
-  }
-
-  private TreeMap<Integer, Type> buildIndexMap(String msg) {
-    int lastIndexOftypes = 0;
-    TreeMap<Integer, Type> typesLastIndexInMsg = new TreeMap<Integer, Type>();
-    Type[] types = Type.values();
-    for (Type t : types) {
-      lastIndexOftypes = getIndexOfType(msg, t);
-      if (lastIndexOftypes >= 0) {
-        typesLastIndexInMsg.put(lastIndexOftypes, t);
-      }
-    }
-    return typesLastIndexInMsg;
+  public void add(InterpreterResultMessage interpreterResultMessage) {
+    msg.add(interpreterResultMessage);
   }
 
   public Code code() {
     return code;
   }
 
-  public String message() {
+  public List<InterpreterResultMessage> message() {
     return msg;
   }
 
-  public Type type() {
-    return type;
+  public String toJson() {
+    return gson.toJson(this);
   }
 
-  public InterpreterResult type(Type type) {
-    this.type = type;
-    return this;
+  public static InterpreterResult fromJson(String json) {
+    return gson.fromJson(json, InterpreterResult.class);
   }
 
   public String toString() {
-    return "%" + type.name().toLowerCase() + " " + msg;
+    StringBuilder sb = new StringBuilder();
+    Type prevType = null;
+    for (InterpreterResultMessage m : msg) {
+      if (prevType != null) {
+        sb.append("\n");
+        if (prevType == Type.TABLE) {
+          sb.append("\n");
+        }
+      }
+      sb.append(m.toString());
+      prevType = m.getType();
+    }
+
+    return sb.toString();
   }
 }

@@ -18,71 +18,114 @@
 package org.apache.zeppelin.markdown;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 
+import static org.apache.zeppelin.markdown.PegdownParser.wrapWithMarkdownClassDiv;
+
+import org.hamcrest.CoreMatchers;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ErrorCollector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
 import java.util.Properties;
 
 import org.apache.zeppelin.interpreter.InterpreterResult;
-import static org.apache.zeppelin.markdown.PegdownParser.wrapWithMarkdownClassDiv;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 
 public class PegdownParserTest {
+  Logger logger = LoggerFactory.getLogger(PegdownParserTest.class);
+  Markdown md;
 
-  MarkdownInterpreter md;
+  @Rule
+  public ErrorCollector collector = new ErrorCollector();
 
   @Before
-  public void setUp() throws Exception {
+  public void setUp() {
     Properties props = new Properties();
-    props.put(MarkdownInterpreter.MARKDOWN_PARSER_TYPE, MarkdownInterpreter.PARSER_TYPE_PEGDOWN);
-    md = new MarkdownInterpreter(props);
+    props.put(Markdown.MARKDOWN_PARSER_TYPE, Markdown.PARSER_TYPE_PEGDOWN);
+    md = new Markdown(props);
     md.open();
   }
 
   @After
-  public void tearDown() throws Exception {
+  public void tearDown() {
     md.close();
+  }
+
+  @Test
+  public void testMultipleThread() {
+    ArrayList<Thread> arrThreads = new ArrayList<>();
+    for (int i = 0; i < 10; i++) {
+      Thread t = new Thread() {
+        public void run() {
+          String r1 = null;
+          try {
+            r1 = md.interpret("# H1", null).code().name();
+          } catch (Exception e) {
+            logger.error("testTestMultipleThread failed to interpret", e);
+          }
+          collector.checkThat("SUCCESS",
+              CoreMatchers.containsString(r1));
+        }
+      };
+      t.start();
+      arrThreads.add(t);
+    }
+
+    for (int i = 0; i < 10; i++) {
+      try {
+        arrThreads.get(i).join();
+      } catch (InterruptedException e) {
+        logger.error("testTestMultipleThread failed to join threads", e);
+      }
+    }
   }
 
   @Test
   public void testHeader() {
     InterpreterResult r1 = md.interpret("# H1", null);
-    assertEquals(wrapWithMarkdownClassDiv("<h1>H1</h1>"), r1.message());
+    assertEquals(wrapWithMarkdownClassDiv("<h1>H1</h1>"), r1.message().get(0).getData());
 
     InterpreterResult r2 = md.interpret("## H2", null);
-    assertEquals(wrapWithMarkdownClassDiv("<h2>H2</h2>"), r2.message());
+    assertEquals(wrapWithMarkdownClassDiv("<h2>H2</h2>"), r2.message().get(0).getData());
 
     InterpreterResult r3 = md.interpret("### H3", null);
-    assertEquals(wrapWithMarkdownClassDiv("<h3>H3</h3>"), r3.message());
+    assertEquals(wrapWithMarkdownClassDiv("<h3>H3</h3>"), r3.message().get(0).getData());
 
     InterpreterResult r4 = md.interpret("#### H4", null);
-    assertEquals(wrapWithMarkdownClassDiv("<h4>H4</h4>"), r4.message());
+    assertEquals(wrapWithMarkdownClassDiv("<h4>H4</h4>"), r4.message().get(0).getData());
 
     InterpreterResult r5 = md.interpret("##### H5", null);
-    assertEquals(wrapWithMarkdownClassDiv("<h5>H5</h5>"), r5.message());
+    assertEquals(wrapWithMarkdownClassDiv("<h5>H5</h5>"), r5.message().get(0).getData());
 
     InterpreterResult r6 = md.interpret("###### H6", null);
-    assertEquals(wrapWithMarkdownClassDiv("<h6>H6</h6>"), r6.message());
+    assertEquals(wrapWithMarkdownClassDiv("<h6>H6</h6>"), r6.message().get(0).getData());
 
     InterpreterResult r7 = md.interpret("Alt-H1\n" + "======", null);
-    assertEquals(wrapWithMarkdownClassDiv("<h1>Alt-H1</h1>"), r7.message());
+    assertEquals(wrapWithMarkdownClassDiv("<h1>Alt-H1</h1>"), r7.message().get(0).getData());
 
     InterpreterResult r8 = md.interpret("Alt-H2\n" + "------", null);
-    assertEquals(wrapWithMarkdownClassDiv("<h2>Alt-H2</h2>"), r8.message());
+    assertEquals(wrapWithMarkdownClassDiv("<h2>Alt-H2</h2>"), r8.message().get(0).getData());
   }
 
   @Test
   public void testStrikethrough() {
     InterpreterResult result = md.interpret("This is ~~deleted~~ text", null);
     assertEquals(
-        wrapWithMarkdownClassDiv("<p>This is <del>deleted</del> text</p>"), result.message());
+        wrapWithMarkdownClassDiv("<p>This is <del>deleted</del> text</p>"),
+            result.message().get(0).getData());
   }
 
   @Test
   public void testItalics() {
     InterpreterResult result = md.interpret("This is *italics* text", null);
     assertEquals(
-        wrapWithMarkdownClassDiv("<p>This is <em>italics</em> text</p>"), result.message());
+        wrapWithMarkdownClassDiv("<p>This is <em>italics</em> text</p>"),
+            result.message().get(0).getData());
   }
 
   @Test
@@ -90,7 +133,7 @@ public class PegdownParserTest {
     InterpreterResult result = md.interpret("This is **strong emphasis** text", null);
     assertEquals(
         wrapWithMarkdownClassDiv("<p>This is <strong>strong emphasis</strong> text</p>"),
-        result.message());
+        result.message().get(0).getData());
   }
 
   @Test
@@ -110,7 +153,7 @@ public class PegdownParserTest {
             .toString();
 
     InterpreterResult result = md.interpret(input, null);
-    assertEquals(wrapWithMarkdownClassDiv(expected), result.message());
+    assertEquals(wrapWithMarkdownClassDiv(expected), result.message().get(0).getData());
   }
 
   @Test
@@ -132,7 +175,7 @@ public class PegdownParserTest {
             .toString();
 
     InterpreterResult result = md.interpret(input, null);
-    assertEquals(wrapWithMarkdownClassDiv(expected), result.message());
+    assertEquals(wrapWithMarkdownClassDiv(expected), result.message().get(0).getData());
   }
 
   @Test
@@ -142,7 +185,8 @@ public class PegdownParserTest {
             .append("[I'm an inline-style link](https://www.google.com)\n")
             .append("\n")
             .append(
-                "[I'm an inline-style link with title](https://www.google.com \"Google's Homepage\")\n")
+                "[I'm an inline-style link with title](https://www.google.com "
+                        + "\"Google's Homepage\")\n")
             .append("\n")
             .append("[I'm a reference-style link][Arbitrary case-insensitive reference text]\n")
             .append("\n")
@@ -168,22 +212,29 @@ public class PegdownParserTest {
             .append(
                 "<p><a href=\"https://www.google.com\">I&rsquo;m an inline-style link</a></p>\n")
             .append(
-                "<p><a href=\"https://www.google.com\" title=\"Google&#39;s Homepage\">I&rsquo;m an inline-style link with title</a></p>\n")
+                "<p><a href=\"https://www.google.com\" title=\"Google&#39;s Homepage\">I&rsquo;m "
+                        + "an inline-style link with title</a></p>\n")
             .append(
                 "<p><a href=\"https://www.mozilla.org\">I&rsquo;m a reference-style link</a></p>\n")
             .append(
-                "<p><a href=\"../blob/master/LICENSE\">I&rsquo;m a relative reference to a repository file</a></p>\n")
+                "<p><a href=\"../blob/master/LICENSE\">I&rsquo;m a relative reference to a "
+                        + "repository file</a></p>\n")
             .append(
-                "<p><a href=\"http://slashdot.org\">You can use numbers for reference-style link definitions</a></p>\n")
+                "<p><a href=\"http://slashdot.org\">You can use numbers for reference-style link "
+                        + "definitions</a></p>\n")
             .append(
-                "<p>Or leave it empty and use the <a href=\"http://www.reddit.com\">link text itself</a>.</p>\n")
+                "<p>Or leave it empty and use the <a href=\"http://www.reddit.com\">link text "
+                        + "itself</a>.</p>\n")
             .append(
-                "<p>URLs and URLs in angle brackets will automatically get turned into links.<br/><a href=\"http://www.example.com\">http://www.example.com</a> or <a href=\"http://www.example.com\">http://www.example.com</a> and sometimes<br/>example.com (but not on Github, for example).</p>\n")
+                "<p>URLs and URLs in angle brackets will automatically get turned into links."
+                        + "<br/><a href=\"http://www.example.com\">http://www.example.com</a> or "
+                        + "<a href=\"http://www.example.com\">http://www.example.com</a> and "
+                        + "sometimes<br/>example.com (but not on Github, for example).</p>\n")
             .append("<p>Some text to show that the reference links can follow later.</p>")
             .toString();
 
     InterpreterResult result = md.interpret(input, null);
-    assertEquals(wrapWithMarkdownClassDiv(expected), result.message());
+    assertEquals(wrapWithMarkdownClassDiv(expected), result.message().get(0).getData());
   }
 
   @Test
@@ -192,7 +243,7 @@ public class PegdownParserTest {
     assertEquals(
         wrapWithMarkdownClassDiv(
             "<p>Inline <code>code</code> has <code>back-ticks around</code> it.</p>"),
-        result.message());
+        result.message().get(0).getData());
   }
 
   @Test
@@ -205,20 +256,27 @@ public class PegdownParserTest {
     assertEquals(
         wrapWithMarkdownClassDiv(
             "<blockquote>\n"
-                + "  <p>Blockquotes are very handy in email to emulate reply text.<br/>This line is part of the same quote.</p>\n"
-                + "</blockquote>"),
-        r1.message());
+                    + "  <p>Blockquotes are very handy in email to emulate reply text.<br/>This "
+                    + "line is part of the same quote.</p>\n"
+                    + "</blockquote>"),
+        r1.message().get(0).getData());
 
     InterpreterResult r2 =
         md.interpret(
-            "> This is a very long line that will still be quoted properly when it wraps. Oh boy let's keep writing to make sure this is long enough to actually wrap for everyone. Oh, you can *put* **MarkdownInterpreter** into a blockquote. ",
+            "> This is a very long line that will still be quoted properly when it "
+                    + "wraps. Oh boy let's keep writing to make sure this is long enough to "
+                    + "actually wrap for everyone. Oh, you can *put* **MarkdownInterpreter** "
+                    + "into a blockquote. ",
             null);
     assertEquals(
         wrapWithMarkdownClassDiv(
             "<blockquote>\n"
-                + "  <p>This is a very long line that will still be quoted properly when it wraps. Oh boy let&rsquo;s keep writing to make sure this is long enough to actually wrap for everyone. Oh, you can <em>put</em> <strong>MarkdownInterpreter</strong> into a blockquote. </p>\n"
-                + "</blockquote>"),
-        r2.message());
+                    + "  <p>This is a very long line that will still be quoted properly when "
+                    + "it wraps. Oh boy let&rsquo;s keep writing to make sure this is long enough "
+                    + "to actually wrap for everyone. Oh, you can <em>put</em> "
+                    + "<strong>MarkdownInterpreter</strong> into a blockquote. </p>\n"
+                    + "</blockquote>"),
+        r2.message().get(0).getData());
   }
 
   @Test
@@ -257,12 +315,11 @@ public class PegdownParserTest {
             .toString();
 
     InterpreterResult result = md.interpret(input, null);
-    assertEquals(wrapWithMarkdownClassDiv(expected), result.message());
+    assertEquals(wrapWithMarkdownClassDiv(expected), result.message().get(0).getData());
   }
 
   @Test
   public void testAlignedTable() {
-
     String input =
         new StringBuilder()
             .append("| First Header | Second Header |         Third Header |\n")
@@ -297,6 +354,50 @@ public class PegdownParserTest {
             .toString();
 
     InterpreterResult result = md.interpret(input, null);
-    assertEquals(wrapWithMarkdownClassDiv(expected), result.message());
+    assertEquals(wrapWithMarkdownClassDiv(expected), result.message().get(0).getData());
+  }
+
+  @Test
+  public void testWebsequencePlugin() {
+    String input =
+        new StringBuilder()
+            .append("\n \n %%% sequence style=modern-blue\n")
+            .append("title Authentication Sequence\n")
+            .append("Alice->Bob: Authentication Request\n")
+            .append("note right of Bob: Bob thinks about it\n")
+            .append("Bob->Alice: Authentication Response\n")
+            .append("  %%%  ")
+            .toString();
+
+    InterpreterResult result = md.interpret(input, null);
+
+    // assert statement below can fail depends on response of websequence service.
+    // To make unittest independent from websequence service,
+    // catch exception, log and pass instead of assert.
+    //
+    // assertThat(result.message().get(0).getData(),
+    // CoreMatchers.containsString("<img src=\"http://www.websequencediagrams.com/?png="));
+
+    System.err.println(result.message().get(0).getData());
+    if (!result.message().get(0).getData().contains(
+        "<img src=\"http://www.websequencediagrams.com/?png=")) {
+      logger.error("Expected {} but found {}",
+          "<img src=\"http://www.websequencediagrams.com/?png=", result.message().get(0).getData());
+    }
+  }
+
+  @Test
+  public void testYumlPlugin() {
+    String input = new StringBuilder()
+        .append("\n \n %%% yuml style=nofunky scale=120 format=svg\n")
+        .append("[Customer]<>-orders>[Order]\n")
+        .append("[Order]++-0..>[LineItem]\n")
+        .append("[Order]-[note:Aggregate root.]\n")
+        .append("  %%%  ")
+        .toString();
+
+    InterpreterResult result = md.interpret(input, null);
+    assertThat(result.message().get(0).getData(),
+            CoreMatchers.containsString("<img src=\"http://yuml.me/diagram/"));
   }
 }

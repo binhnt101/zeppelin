@@ -17,7 +17,16 @@
  */
 package org.apache.zeppelin.flink;
 
-import java.lang.reflect.InvocationTargetException;
+import org.apache.flink.api.common.JobID;
+import org.apache.flink.api.scala.FlinkILoop;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.runtime.akka.AkkaUtils;
+import org.apache.flink.runtime.instance.ActorGateway;
+import org.apache.flink.runtime.messages.JobManagerMessages;
+import org.apache.flink.runtime.minicluster.LocalFlinkMiniCluster;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -25,37 +34,32 @@ import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.util.*;
-
-import org.apache.flink.api.scala.FlinkILoop;
-import org.apache.flink.configuration.Configuration;
-import org.apache.flink.runtime.minicluster.LocalFlinkMiniCluster;
-import org.apache.flink.runtime.util.EnvironmentInformation;
-import org.apache.zeppelin.interpreter.Interpreter;
-import org.apache.zeppelin.interpreter.InterpreterContext;
-import org.apache.zeppelin.interpreter.InterpreterPropertyBuilder;
-import org.apache.zeppelin.interpreter.InterpreterResult;
-import org.apache.zeppelin.interpreter.InterpreterResult.Code;
-import org.apache.zeppelin.interpreter.InterpreterUtils;
-import org.apache.zeppelin.interpreter.thrift.InterpreterCompletion;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 
 import scala.Console;
-import scala.None;
-import scala.Option;
 import scala.Some;
 import scala.collection.JavaConversions;
-import scala.collection.immutable.Nil;
+import scala.concurrent.duration.FiniteDuration;
 import scala.runtime.AbstractFunction0;
 import scala.tools.nsc.Settings;
 import scala.tools.nsc.interpreter.IMain;
 import scala.tools.nsc.interpreter.Results;
+import scala.tools.nsc.settings.MutableSettings;
 import scala.tools.nsc.settings.MutableSettings.BooleanSetting;
 import scala.tools.nsc.settings.MutableSettings.PathSetting;
 
+import org.apache.zeppelin.interpreter.Interpreter;
+import org.apache.zeppelin.interpreter.InterpreterContext;
+import org.apache.zeppelin.interpreter.InterpreterResult;
+import org.apache.zeppelin.interpreter.InterpreterResult.Code;
+import org.apache.zeppelin.interpreter.InterpreterUtils;
+import org.apache.zeppelin.interpreter.thrift.InterpreterCompletion;
+
 /**
- * Interpreter for Apache Flink (http://flink.apache.org)
+ * Interpreter for Apache Flink (http://flink.apache.org).
  */
 public class FlinkInterpreter extends Interpreter {
   Logger logger = LoggerFactory.getLogger(FlinkInterpreter.class);
@@ -74,7 +78,7 @@ public class FlinkInterpreter extends Interpreter {
   public void open() {
     out = new ByteArrayOutputStream();
     flinkConf = new org.apache.flink.configuration.Configuration();
-    Properties intpProperty = getProperty();
+    Properties intpProperty = getProperties();
     for (Object k : intpProperty.keySet()) {
       String key = (String) k;
       String val = toString(intpProperty.get(key));
@@ -85,11 +89,29 @@ public class FlinkInterpreter extends Interpreter {
       startFlinkMiniCluster();
     }
 
+    String[] externalJars = new String[0];
+    String localRepo = getProperty("zeppelin.interpreter.localRepo");
+    if (localRepo != null) {
+      File localRepoDir = new File(localRepo);
+      if (localRepoDir.exists()) {
+        File[] files = localRepoDir.listFiles();
+        if (files != null) {
+          externalJars = new String[files.length];
+          for (int i = 0; i < files.length; i++) {
+            if (externalJars.length > 0) {
+              externalJars[i] = files[i].getAbsolutePath();
+            }
+          }
+        }
+      }
+    }
+
     flinkIloop = new FlinkILoop(getHost(),
-                                getPort(),
-                                flinkConf,
-                                (BufferedReader) null,
-                                new PrintWriter(out));
+        getPort(),
+        flinkConf,
+        new Some<>(externalJars),
+        (BufferedReader) null,
+        new PrintWriter(out));
 
     flinkIloop.settings_$eq(createSettings());
     flinkIloop.createInterpreter();
@@ -98,7 +120,6 @@ public class FlinkInterpreter extends Interpreter {
 
     org.apache.flink.api.scala.ExecutionEnvironment benv =
             flinkIloop.scalaBenv();
-            //new ExecutionEnvironment(remoteBenv)
     org.apache.flink.streaming.api.scala.StreamExecutionEnvironment senv =
             flinkIloop.scalaSenv();
 
@@ -175,12 +196,18 @@ public class FlinkInterpreter extends Interpreter {
 
     pathSettings.v_$eq(classpath);
     settings.scala$tools$nsc$settings$ScalaSettings$_setter_$classpath_$eq(pathSettings);
-    settings.explicitParentLoader_$eq(new Some<ClassLoader>(Thread.currentThread()
+    settings.explicitParentLoader_$eq(new Some<>(Thread.currentThread()
         .getContextClassLoader()));
     BooleanSetting b = (BooleanSetting) settings.usejavacp();
     b.v_$eq(true);
     settings.scala$tools$nsc$settings$StandardScalaSettings$_setter_$usejavacp_$eq(b);
-    
+
+    // To prevent 'File name too long' error on some file system.
+    MutableSettings.IntSetting numClassFileSetting = settings.maxClassfileName();
+    numClassFileSetting.v_$eq(128);
+    settings.scala$tools$nsc$settings$ScalaSettings$_setter_$maxClassfileName_$eq(
+            numClassFileSetting);
+
     return settings;
   }
   
@@ -197,7 +224,7 @@ public class FlinkInterpreter extends Interpreter {
   }
 
   private List<File> classPath(ClassLoader cl) {
-    List<File> paths = new LinkedList<File>();
+    List<File> paths = new LinkedList<>();
     if (cl == null) {
       return paths;
     }
@@ -217,7 +244,7 @@ public class FlinkInterpreter extends Interpreter {
   public Object getLastObject() {
     Object obj = imain.lastRequest().lineRep().call(
         "$result",
-        JavaConversions.asScalaBuffer(new LinkedList<Object>()));
+        JavaConversions.asScalaBuffer(new LinkedList<>()));
     return obj;
   }
 
@@ -334,6 +361,20 @@ public class FlinkInterpreter extends Interpreter {
 
   @Override
   public void cancel(InterpreterContext context) {
+    if (localMode()) {
+      // In localMode we can cancel all running jobs,
+      // because the local cluster can only run one job at the time.
+      for (JobID job : this.localFlinkCluster.getCurrentlyRunningJobsJava()) {
+        logger.info("Stop job: " + job);
+        cancelJobLocalMode(job);
+      }
+    }
+  }
+
+  private void cancelJobLocalMode(JobID jobID){
+    FiniteDuration timeout = AkkaUtils.getTimeout(this.localFlinkCluster.configuration());
+    ActorGateway leader = this.localFlinkCluster.getLeaderGateway(timeout);
+    leader.ask(new JobManagerMessages.CancelJob(jobID), timeout);
   }
 
   @Override
@@ -347,7 +388,8 @@ public class FlinkInterpreter extends Interpreter {
   }
 
   @Override
-  public List<InterpreterCompletion> completion(String buf, int cursor) {
+  public List<InterpreterCompletion> completion(String buf, int cursor,
+      InterpreterContext interpreterContext) {
     return new LinkedList<>();
   }
 

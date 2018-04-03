@@ -31,7 +31,7 @@ public class LazyOpenInterpreter
     extends Interpreter
     implements WrappedInterpreter {
   private Interpreter intp;
-  boolean opened = false;
+  volatile boolean opened = false;
 
   public LazyOpenInterpreter(Interpreter intp) {
     super(new Properties());
@@ -44,13 +44,13 @@ public class LazyOpenInterpreter
   }
 
   @Override
-  public void setProperty(Properties property) {
-    intp.setProperty(property);
+  public void setProperties(Properties properties) {
+    intp.setProperties(properties);
   }
 
   @Override
-  public Properties getProperty() {
-    return intp.getProperty();
+  public Properties getProperties() {
+    return intp.getProperties();
   }
 
   @Override
@@ -59,7 +59,7 @@ public class LazyOpenInterpreter
   }
 
   @Override
-  public void open() {
+  public synchronized void open() throws InterpreterException {
     if (opened == true) {
       return;
     }
@@ -73,7 +73,13 @@ public class LazyOpenInterpreter
   }
 
   @Override
-  public void close() {
+  public InterpreterResult executePrecode(InterpreterContext interpreterContext)
+      throws InterpreterException {
+    return intp.executePrecode(interpreterContext);
+  }
+
+  @Override
+  public void close() throws InterpreterException {
     synchronized (intp) {
       if (opened == true) {
         intp.close();
@@ -89,26 +95,35 @@ public class LazyOpenInterpreter
   }
 
   @Override
-  public InterpreterResult interpret(String st, InterpreterContext context) {
+  public InterpreterResult interpret(String st, InterpreterContext context)
+      throws InterpreterException {
     open();
-    return intp.interpret(st, context);
+    ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+    try {
+      return intp.interpret(st, context);
+    } finally {
+      Thread.currentThread().setContextClassLoader(classLoader);
+    }
   }
 
   @Override
-  public void cancel(InterpreterContext context) {
+  public void cancel(InterpreterContext context) throws InterpreterException {
     open();
     intp.cancel(context);
   }
 
   @Override
-  public FormType getFormType() {
+  public FormType getFormType() throws InterpreterException {
     return intp.getFormType();
   }
 
   @Override
-  public int getProgress(InterpreterContext context) {
-    open();
-    return intp.getProgress(context);
+  public int getProgress(InterpreterContext context) throws InterpreterException {
+    if (opened) {
+      return intp.getProgress(context);
+    } else {
+      return 0;
+    }
   }
 
   @Override
@@ -117,9 +132,10 @@ public class LazyOpenInterpreter
   }
 
   @Override
-  public List<InterpreterCompletion> completion(String buf, int cursor) {
+  public List<InterpreterCompletion> completion(String buf, int cursor,
+      InterpreterContext interpreterContext) throws InterpreterException {
     open();
-    List completion = intp.completion(buf, cursor);
+    List completion = intp.completion(buf, cursor, interpreterContext);
     return completion;
   }
 
@@ -146,5 +162,45 @@ public class LazyOpenInterpreter
   @Override
   public void setClassloaderUrls(URL [] urls) {
     intp.setClassloaderUrls(urls);
+  }
+
+  @Override
+  public void registerHook(String noteId, String event, String cmd) throws InvalidHookException {
+    intp.registerHook(noteId, event, cmd);
+  }
+
+  @Override
+  public void registerHook(String event, String cmd) throws InvalidHookException {
+    intp.registerHook(event, cmd);
+  }
+
+  @Override
+  public String getHook(String noteId, String event) {
+    return intp.getHook(noteId, event);
+  }
+
+  @Override
+  public String getHook(String event) {
+    return intp.getHook(event);
+  }
+
+  @Override
+  public void unregisterHook(String noteId, String event) {
+    intp.unregisterHook(noteId, event);
+  }
+
+  @Override
+  public void unregisterHook(String event) {
+    intp.unregisterHook(event);
+  }
+
+  @Override
+  public void setUserName(String userName) {
+    this.intp.setUserName(userName);
+  }
+
+  @Override
+  public String getUserName() {
+    return this.intp.getUserName();
   }
 }

@@ -19,16 +19,24 @@ package org.apache.zeppelin.lens;
 
 import static org.junit.Assert.assertEquals;
 
-import java.util.Properties;
+import static org.apache.zeppelin.lens.LensInterpreter.LENS_CLIENT_DBNAME;
+import static org.apache.zeppelin.lens.LensInterpreter.LENS_PERSIST_RESULTSET;
+import static org.apache.zeppelin.lens.LensInterpreter.LENS_SERVER_URL;
+import static org.apache.zeppelin.lens.LensInterpreter.LENS_SESSION_CLUSTER_USER;
+import static org.apache.zeppelin.lens.LensInterpreter.ZEPPELIN_LENS_CONCURRENT_SESSIONS;
+import static org.apache.zeppelin.lens.LensInterpreter.ZEPPELIN_LENS_RUN_CONCURRENT_SESSION;
+import static org.apache.zeppelin.lens.LensInterpreter.ZEPPELIN_MAX_ROWS;
 
-import org.apache.zeppelin.interpreter.InterpreterResult;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import static org.apache.zeppelin.lens.LensInterpreter.*;
+
+import java.util.Properties;
+
+import org.apache.zeppelin.interpreter.InterpreterResult;
 
 /**
- * Lens interpreter unit tests
+ * Lens interpreter unit tests.
  */
 public class LensInterpreterTest {
   @Before
@@ -53,19 +61,20 @@ public class LensInterpreterTest {
     t.open();
     //simple help test
     InterpreterResult result = t.interpret("help", null);
-    assertEquals(result.type(), InterpreterResult.Type.TEXT);
+    assertEquals(result.message().get(0).getType(), InterpreterResult.Type.TEXT);
     //assertEquals("unable to find 'query execute' in help message", 
     //  result.message().contains("query execute"), result.message());
     t.close();
   }
   
   class MockLensInterpreter extends LensInterpreter {
-    public MockLensInterpreter(Properties property) {
+    MockLensInterpreter(Properties property) {
       super(property);  
     }
+
     @Override
     public void open() {
-     super.init();
+      super.init();
     }
   }
 }

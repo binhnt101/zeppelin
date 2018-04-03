@@ -25,7 +25,6 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
-import java.net.URI;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -33,7 +32,7 @@ import java.util.List;
  * Simple Helium registry on local filesystem
  */
 public class HeliumLocalRegistry extends HeliumRegistry {
-  Logger logger = LoggerFactory.getLogger(HeliumLocalRegistry.class);
+  private Logger logger = LoggerFactory.getLogger(HeliumLocalRegistry.class);
 
   private final Gson gson;
 
@@ -43,10 +42,9 @@ public class HeliumLocalRegistry extends HeliumRegistry {
 
   }
 
-
   @Override
   public synchronized List<HeliumPackage> getAll() throws IOException {
-    List<HeliumPackage> result = new LinkedList<HeliumPackage>();
+    List<HeliumPackage> result = new LinkedList<>();
 
     File file = new File(uri());
     File [] files = file.listFiles();

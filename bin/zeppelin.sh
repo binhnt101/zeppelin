@@ -65,12 +65,17 @@ fi
 
 addJarInDir "${ZEPPELIN_HOME}"
 addJarInDir "${ZEPPELIN_HOME}/lib"
+addJarInDir "${ZEPPELIN_HOME}/lib/interpreter"
 addJarInDir "${ZEPPELIN_HOME}/zeppelin-interpreter/target/lib"
 addJarInDir "${ZEPPELIN_HOME}/zeppelin-zengine/target/lib"
 addJarInDir "${ZEPPELIN_HOME}/zeppelin-server/target/lib"
 addJarInDir "${ZEPPELIN_HOME}/zeppelin-web/target/lib"
 
-CLASSPATH+=":${ZEPPELIN_CLASSPATH}"
+ZEPPELIN_CLASSPATH="$CLASSPATH:$ZEPPELIN_CLASSPATH"
+
+if [[ -n "${HADOOP_CONF_DIR}" ]] && [[ -d "${HADOOP_CONF_DIR}" ]]; then
+  ZEPPELIN_CLASSPATH+=":${HADOOP_CONF_DIR}"
+fi
 
 if [[ ! -d "${ZEPPELIN_LOG_DIR}" ]]; then
   echo "Log dir doesn't exist, create ${ZEPPELIN_LOG_DIR}"
@@ -82,9 +87,4 @@ if [[ ! -d "${ZEPPELIN_PID_DIR}" ]]; then
   $(mkdir -p "${ZEPPELIN_PID_DIR}")
 fi
 
-if [[ ! -d "${ZEPPELIN_NOTEBOOK_DIR}" ]]; then
-  echo "Pid dir doesn't exist, create ${ZEPPELIN_NOTEBOOK_DIR}"
-  $(mkdir -p "${ZEPPELIN_NOTEBOOK_DIR}")
-fi
-
-exec $ZEPPELIN_RUNNER $JAVA_OPTS -cp $ZEPPELIN_CLASSPATH_OVERRIDES:$CLASSPATH $ZEPPELIN_SERVER "$@"
+exec $ZEPPELIN_RUNNER $JAVA_OPTS -cp $ZEPPELIN_CLASSPATH_OVERRIDES:${ZEPPELIN_CLASSPATH} $ZEPPELIN_SERVER "$@"

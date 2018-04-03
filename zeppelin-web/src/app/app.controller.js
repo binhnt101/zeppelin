@@ -11,12 +11,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-'use strict';
 
-angular.module('zeppelinWebApp').controller('MainCtrl', function($scope, $rootScope, $window, arrayOrderingSrv) {
+angular.module('zeppelinWebApp').controller('MainCtrl', MainCtrl);
+
+function MainCtrl($scope, $rootScope, $window, arrayOrderingSrv) {
+  'ngInject';
+
   $scope.looknfeel = 'default';
 
-  var init = function() {
+  let init = function() {
     $scope.asIframe = (($window.location.href.indexOf('asIframe') > -1) ? true : false);
   };
 
@@ -53,4 +56,4 @@ angular.module('zeppelinWebApp').controller('MainCtrl', function($scope, $rootSc
 
   // Remove BootstrapDialog animation
   BootstrapDialog.configDefaultOptions({animate: false});
-});
+}

@@ -16,7 +16,9 @@
  */
 package org.apache.zeppelin.resource;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * ResourcePool
@@ -35,6 +37,7 @@ public class LocalResourcePool implements ResourcePool {
 
   /**
    * Get unique id of this resource pool
+   *
    * @return
    */
   @Override
@@ -44,6 +47,7 @@ public class LocalResourcePool implements ResourcePool {
 
   /**
    * Get resource
+   *
    * @return null if resource not found
    */
   @Override
@@ -65,6 +69,7 @@ public class LocalResourcePool implements ResourcePool {
 
   /**
    * Put resource into the pull
+   *
    * @param
    * @param object object to put into the resource
    */
@@ -72,7 +77,7 @@ public class LocalResourcePool implements ResourcePool {
   public void put(String name, Object object) {
     ResourceId resourceId = new ResourceId(resourcePoolId, name);
 
-    Resource resource = new Resource(resourceId, object);
+    Resource resource = new Resource(this, resourceId, object);
     resources.put(resourceId, resource);
   }
 
@@ -80,7 +85,7 @@ public class LocalResourcePool implements ResourcePool {
   public void put(String noteId, String paragraphId, String name, Object object) {
     ResourceId resourceId = new ResourceId(resourcePoolId, noteId, paragraphId, name);
 
-    Resource resource = new Resource(resourceId, object);
+    Resource resource = new Resource(this, resourceId, object);
     resources.put(resourceId, resource);
   }
 

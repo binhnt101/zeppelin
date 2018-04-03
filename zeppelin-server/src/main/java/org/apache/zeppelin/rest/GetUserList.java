@@ -24,7 +24,8 @@ import org.apache.shiro.realm.ldap.JndiLdapContextFactory;
 import org.apache.shiro.realm.ldap.JndiLdapRealm;
 import org.apache.shiro.realm.text.IniRealm;
 import org.apache.shiro.util.JdbcUtils;
-import org.apache.zeppelin.server.ActiveDirectoryGroupRealm;
+import org.apache.zeppelin.realm.ActiveDirectoryGroupRealm;
+import org.apache.zeppelin.realm.LdapRealm;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -114,8 +115,76 @@ public class GetUserList {
     } catch (Exception e) {
       LOG.error("Error retrieving User list from Ldap Realm", e);
     }
+    LOG.info("UserList: " + userList);
     return userList;
   }
+  
+  /**
+   * function to extract users from Zeppelin LdapRealm
+   */
+  public List<String> getUserList(LdapRealm r, String searchText) {
+    List<String> userList = new ArrayList<>();
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("SearchText: " + searchText);
+    }
+    String userAttribute = r.getUserSearchAttributeName();
+    String userSearchRealm = r.getUserSearchBase();
+    String userObjectClass = r.getUserObjectClass();
+    JndiLdapContextFactory CF = (JndiLdapContextFactory) r.getContextFactory();
+    try {
+      LdapContext ctx = CF.getSystemLdapContext();
+      SearchControls constraints = new SearchControls();
+      constraints.setSearchScope(SearchControls.SUBTREE_SCOPE);
+      String[] attrIDs = {userAttribute};
+      constraints.setReturningAttributes(attrIDs);
+      NamingEnumeration result = ctx.search(userSearchRealm, "(&(objectclass=" + 
+            userObjectClass + ")(" 
+            + userAttribute + "=" + searchText + "))", constraints);
+      while (result.hasMore()) {
+        Attributes attrs = ((SearchResult) result.next()).getAttributes();
+        if (attrs.get(userAttribute) != null) {
+          String currentUser;
+          if (r.getUserLowerCase()) {
+            LOG.debug("userLowerCase true");
+            currentUser = ((String) attrs.get(userAttribute).get()).toLowerCase();
+          } else {
+            LOG.debug("userLowerCase false");
+            currentUser = (String) attrs.get(userAttribute).get();            
+          }
+          if (LOG.isDebugEnabled()) {
+            LOG.debug("CurrentUser: " + currentUser);
+          }
+          userList.add(currentUser.trim());
+        }
+      }
+    } catch (Exception e) {
+      LOG.error("Error retrieving User list from Ldap Realm", e);
+    }
+    return userList;
+  }
+  
+  /***
+   * Get user roles from shiro.ini for Zeppelin LdapRealm
+   * @param r
+   * @return
+   */
+  public List<String> getRolesList(LdapRealm r) {
+    List<String> roleList = new ArrayList<>();
+    Map<String, String> roles = r.getListRoles();
+    if (roles != null) {
+      Iterator it = roles.entrySet().iterator();
+      while (it.hasNext()) {
+        Map.Entry pair = (Map.Entry) it.next();
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("RoleKeyValue: " + pair.getKey() + 
+                " = " + pair.getValue());
+        }
+        roleList.add((String) pair.getKey());
+      }
+    }
+    return roleList;
+  }
+  
 
   public List<String> getUserList(ActiveDirectoryGroupRealm r, String searchText) {
     List<String> userList = new ArrayList<>();
@@ -133,6 +202,7 @@ public class GetUserList {
    */
   public List<String> getUserList(JdbcRealm obj) {
     List<String> userlist = new ArrayList<>();
+    Connection con = null;
     PreparedStatement ps = null;
     ResultSet rs = null;
     DataSource dataSource = null;
@@ -143,7 +213,7 @@ public class GetUserList {
     String userquery = "";
     try {
       dataSource = (DataSource) FieldUtils.readField(obj, "dataSource", true);
-      authQuery = (String) FieldUtils.readField(obj, "DEFAULT_AUTHENTICATION_QUERY", true);
+      authQuery = (String) FieldUtils.readField(obj, "authenticationQuery", true);
       LOG.info(authQuery);
       String authQueryLowerCase = authQuery.toLowerCase();
       retval = authQueryLowerCase.split("from", 2);
@@ -162,7 +232,7 @@ public class GetUserList {
         return userlist;
       }
 
-      userquery = "select " + username + " from " + tablename;
+      userquery = String.format("SELECT %s FROM %s", username, tablename);
 
     } catch (IllegalAccessException e) {
       LOG.error("Error while accessing dataSource for JDBC Realm", e);
@@ -170,7 +240,7 @@ public class GetUserList {
     }
 
     try {
-      Connection con = dataSource.getConnection();
+      con = dataSource.getConnection();
       ps = con.prepareStatement(userquery);
       rs = ps.executeQuery();
       while (rs.next()) {
@@ -181,6 +251,7 @@ public class GetUserList {
     } finally {
       JdbcUtils.closeResultSet(rs);
       JdbcUtils.closeStatement(ps);
+      JdbcUtils.closeConnection(con);
     }
     return userlist;
   }

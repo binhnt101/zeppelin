@@ -17,35 +17,35 @@
 
 package org.apache.zeppelin.markdown;
 
-import org.apache.zeppelin.interpreter.InterpreterResult;
+import static org.junit.Assert.assertEquals;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Properties;
 
-import static org.junit.Assert.assertEquals;
+import org.apache.zeppelin.interpreter.InterpreterResult;
 
 public class Markdown4jParserTest {
-
-  MarkdownInterpreter md;
+  Markdown md;
 
   @Before
-  public void setUp() throws Exception {
+  public void setUp() {
     Properties props = new Properties();
-    props.put(MarkdownInterpreter.MARKDOWN_PARSER_TYPE, MarkdownInterpreter.PARSER_TYPE_MARKDOWN4J);
-    md = new MarkdownInterpreter(props);
+    props.put(Markdown.MARKDOWN_PARSER_TYPE, Markdown.PARSER_TYPE_MARKDOWN4J);
+    md = new Markdown(props);
     md.open();
   }
 
   @After
-  public void tearDown() throws Exception {
+  public void tearDown() {
     md.close();
   }
 
   @Test
   public void testStrikethrough() {
     InterpreterResult result = md.interpret("This is ~~deleted~~ text", null);
-    assertEquals("<p>This is <s>deleted</s> text</p>\n", result.message());
+    assertEquals("<p>This is <s>deleted</s> text</p>\n", result.message().get(0).getData());
   }
 }

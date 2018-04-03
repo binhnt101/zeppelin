@@ -21,11 +21,6 @@ import org.apache.ignite.Ignition;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
-import org.apache.zeppelin.interpreter.*;
-import org.apache.zeppelin.interpreter.InterpreterResult.Code;
-import org.apache.zeppelin.interpreter.thrift.InterpreterCompletion;
-import org.apache.zeppelin.scheduler.Scheduler;
-import org.apache.zeppelin.scheduler.SchedulerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,13 +31,12 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
 import scala.Console;
-import scala.None;
 import scala.Some;
 import scala.collection.JavaConversions;
 import scala.tools.nsc.Settings;
@@ -50,6 +44,15 @@ import scala.tools.nsc.interpreter.IMain;
 import scala.tools.nsc.interpreter.Results.Result;
 import scala.tools.nsc.settings.MutableSettings.BooleanSetting;
 import scala.tools.nsc.settings.MutableSettings.PathSetting;
+
+import org.apache.zeppelin.interpreter.Interpreter;
+import org.apache.zeppelin.interpreter.InterpreterContext;
+import org.apache.zeppelin.interpreter.InterpreterResult;
+import org.apache.zeppelin.interpreter.InterpreterResult.Code;
+import org.apache.zeppelin.interpreter.InterpreterUtils;
+import org.apache.zeppelin.interpreter.thrift.InterpreterCompletion;
+import org.apache.zeppelin.scheduler.Scheduler;
+import org.apache.zeppelin.scheduler.SchedulerFactory;
 
 /**
  * Apache Ignite interpreter (http://ignite.incubator.apache.org/).
@@ -75,23 +78,6 @@ public class IgniteInterpreter extends Interpreter {
   static final String IGNITE_PEER_CLASS_LOADING_ENABLED = "ignite.peerClassLoadingEnabled";
 
   static final String IGNITE_CFG_URL = "ignite.config.url";
-
-  static {
-    Interpreter.register(
-            "ignite",
-            "ignite",
-            IgniteInterpreter.class.getName(),
-            true,
-            new InterpreterPropertyBuilder()
-                    .add(IGNITE_ADDRESSES, "127.0.0.1:47500..47509",
-                            "Coma separated list of addresses "
-                                    + "(e.g. 127.0.0.1:47500 or 127.0.0.1:47500..47509)")
-                    .add(IGNITE_CLIENT_MODE, "true", "Client mode. true or false")
-                    .add(IGNITE_CFG_URL, "", "Configuration URL. Overrides all other settings.")
-                    .add(IGNITE_PEER_CLASS_LOADING_ENABLED, "true",
-                            "Peer class loading enabled. true or false")
-                    .build());
-  }
 
   private Logger logger = LoggerFactory.getLogger(IgniteInterpreter.class);
   private Ignite ignite;
@@ -178,7 +164,7 @@ public class IgniteInterpreter extends Interpreter {
   public Object getLastObject() {
     Object obj = imain.lastRequest().lineRep().call(
         "$result",
-        JavaConversions.asScalaBuffer(new LinkedList<Object>()));
+        JavaConversions.asScalaBuffer(new LinkedList<>()));
     return obj;
   }
 
@@ -217,15 +203,20 @@ public class IgniteInterpreter extends Interpreter {
   }
 
   private void initIgnite() {
-    imain.interpret("@transient var _binder = new java.util.HashMap[String, Object]()");
-    Map<String, Object> binder = (Map<String, Object>) getLastObject();
+    ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+    try {
+      imain.interpret("@transient var _binder = new java.util.HashMap[String, Object]()");
+      Map<String, Object> binder = (Map<String, Object>) getLastObject();
 
-    if (getIgnite() != null) {
-      binder.put("ignite", ignite);
+      if (getIgnite() != null) {
+        binder.put("ignite", ignite);
 
-      imain.interpret("@transient val ignite = "
-              + "_binder.get(\"ignite\")"
-              + ".asInstanceOf[org.apache.ignite.Ignite]");
+        imain.interpret("@transient val ignite = "
+            + "_binder.get(\"ignite\")"
+            + ".asInstanceOf[org.apache.ignite.Ignite]");
+      }
+    } finally {
+      Thread.currentThread().setContextClassLoader(contextClassLoader);
     }
   }
 
@@ -296,11 +287,14 @@ public class IgniteInterpreter extends Interpreter {
         }
       }
 
+      ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
       try {
         code = getResultCode(imain.interpret(incomplete + s));
       } catch (Exception e) {
         logger.info("Interpreter exception", e);
         return new InterpreterResult(Code.ERROR, InterpreterUtils.getMostRelevantMessage(e));
+      } finally {
+        Thread.currentThread().setContextClassLoader(contextClassLoader);
       }
 
       if (code == Code.ERROR) {
@@ -340,7 +334,8 @@ public class IgniteInterpreter extends Interpreter {
   }
 
   @Override
-  public List<InterpreterCompletion> completion(String buf, int cursor) {
+  public List<InterpreterCompletion> completion(String buf, int cursor,
+      InterpreterContext interpreterContext) {
     return new LinkedList<>();
   }
 
