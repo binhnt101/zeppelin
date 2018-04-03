@@ -1,0 +1,15 @@
+1. Clone apache zeppeline
+git clone https://github.com/apache/zeppelin.git
+
+2.  Build source
+export MAVEN_OPTS="-Xmx2g -XX:MaxPermSize=1024m"
+
+dev/change_scala_version.sh 2.11
+mvn clean package -DskipTests -Pspark-2.2 -Phadoop-2.7 -Pyarn -Ppyspark -Psparkr -Pr -Pscala-2.11  -Pscalding   -Dignite.version=1.9.0
+
+3. Start daemon
+bin/zeppelin-daemon.sh start
+
+
+
+Build Spark Interpreter
